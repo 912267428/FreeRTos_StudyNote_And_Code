@@ -1,2 +1,2 @@
 # FreeRTos_StudyNote_And_Code
-Note
+Note：在任务管理的静态任务创建工程中有一些对库函数的注释
