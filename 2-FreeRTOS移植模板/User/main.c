@@ -17,7 +17,7 @@ TaskHandle_t StartTask_Handler;
 void start_task(void *pvParameters);
 
 //任务优先级
-#define OLED_TASK_PRIO		30
+#define OLED_TASK_PRIO		1
 //任务堆栈大小	
 #define OLED_STK_SIZE 		50  
 //任务句柄
@@ -26,7 +26,7 @@ TaskHandle_t OLEDTask_Handler;
 void oled_task(void *pvParameters);
 
 //任务优先级
-#define Key_TASK_PRIO		30
+#define Key_TASK_PRIO		1
 //任务堆栈大小	
 #define Key_STK_SIZE 		50  
 //任务句柄
@@ -103,10 +103,15 @@ void key_task(void *pvParameters)
 	
 	while(1)
 	{
-		KeyNum = YCKey_GetNum();
-		if (KeyNum == 1)
+		KeyNum = YCKey_GetNum(0);
+		if (KeyNum == KEY0_PRESS)
 		{
-			printf("Receviced\r\n");
+			printf("KEY0_PRESSED\r\n");
 		}
+		else if(KeyNum == KEY1_PRESS)
+		{
+			printf("KEY1_PRESSED\r\n");
+		}
+		vTaskDelay(20);
 	}
 }

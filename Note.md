@@ -1,16 +1,16 @@
-## 4.1：FreeRTOS启动流程
+## 4、FreeRTOS启动流程
 
-### 任务创建
+#### 任务创建
 
 1：在系统上电是第一个执行的是启动文件里面由汇编语言编写的复位函数
-![](.\image\4.1复位函数.jpg)
+![](image\4.1复位函数.jpg)
 		在复位函数中初始化系统时钟，然后再跳转到C语言空函数__main(主要工作是初始化系统的堆和栈)最后调用main函数执行。
 
 2：在main函数中直接进行创建任务的操作，FreeRTOS中会自动完成一些初始化的工作（eg.内存堆的初始化）。 在main函数中创建任务时提前定义好**任务函数**、**任务堆栈大小**、**任务优先级**、**任务句柄**（实际上就是指向任务控制块TCB的指针）然后调用**xTaskCreate**既可。
 
-![image-20230820201254584](.\image\4.2任务创建_预定于.jpg)
+![image-20230820201254584](image\4.2任务创建_预定于.jpg)
 
-![image-20230820201357342](D:\zqrs\FreeRTos_StudyNote_And_Code\image\4.3任务创建_传教开始任务.jpg)
+![image-20230820201357342](image\4.3任务创建_传教开始任务.jpg)
 创建任务函数中会有申请内存的操作：
 
 ```c
@@ -44,7 +44,7 @@ if( xReturn == pdPASS )
  }
 ```
 
-### 任务调度
+#### 任务调度
 
 在Cortex-M3架构中，FreeRTOS为了任务启动和任务切换使用了三个异常：**SVC**、**PendSV**、**SysTick**
 
@@ -54,10 +54,90 @@ if( xReturn == pdPASS )
 
 PendSV和SysTick的异常优先级设置为最低，这样任务切换的时候就不会打断某个中断服务程序，中断服务程序也不会延迟。
 
-### 主函数
+#### 主函数
 
 1. 首先进行硬件初始化
 2. 调用函数xTaskCreate创建开始任务
 3. 调用函数vTaskStartScheduler开启任务调度器
 4. 在开始任务函数中创建应用任务（逻辑代码都在应用任务中）**在主任务函数中会首先进入临界区，在临界区中的代码不会被调度器打断，直到退出临界区。**
 5. 删除开始任务
+
+## 5、任务管理
+
+对于实时操作系统来说，核心就是管理各个任务与各个任务间的通信。
+
+#### 简介
+
+FreeRTOS四种任务状态之间的转换图：(**仅就绪态可转变成运行态**  	**其他状态的任务想运行，必须先转变成就绪态**)
+
+![image-20230820205009130](image\5.1任务状态.jpg)
+
+#### 常用API函数
+
+##### void vTaskSuspend(TaskHandle_t xTaskToSuspend)
+
+**参数**：TaskHandle_t xTaskToSuspend	要挂起任务的任务句柄，如果使用函数 xTaskCreate() 创建任务的话那么函数的参数pxCreatedTask 就是此任务的任务句柄。也可以通过函数 xTaskGetHandle()来根据任务名字来获取某个任务的任务句柄。**注意!如果参数为 NULL 的话表示挂起任务自己。**
+
+被挂起的任务在解除挂起态之前绝对不会得到CPU的使用权。
+
+
+
+##### void vTaskSuspendAll(void)   如名字，挂起所有任务。
+
+函数实现其实是挂起任务的调度器，不能进行上下文切换。但是中断还是使能的。
+
+
+
+##### void vTaskResume(TaskHandle_t xTaskToResume)
+
+任务恢复函数，使得任务恢复到就绪态
+**参数**：TaskHandle_t xTaskToResume	要恢复任务的句柄
+
+
+
+##### BaseType_t xTaskResumeFromISR(TaskHandle_t xTaskToResume)
+
+任务恢复函数，与前面一个的恢复函数不同，此函数是在中断中恢复函数。
+**参数**：同上
+**返回值**：pdTRUE：恢复运行的任务的优先级等于或者高于正在运行的任务(被中断打断的任务)，这意味着在退出中断服务函数以后必须进行一次上下文切换。pdFALSE：恢复运行的任务的任务优先级低于当前正在运行的任务(被中断打断的任务)，这意味着在退出中断服务函数的以后不需要进行上下文切换。
+
+
+
+##### void vTaskDelete(TaskHandle_t xTaskToDelete)
+
+任务删除函数
+**参数**：TaskHandle_t xTaskToDelete		要删除函数的句柄，**删除自己传入NULL**
+
+
+
+##### void vTaskDelay(const TickType_t xTicksToDelay)
+
+任务延时函数，可以将任务变为指定时间片的阻塞态。
+**参数**：const TickType_t xTicksToDelay	指定延时的时间片数
+
+
+
+##### void vTaskDelayUntil(TickType_t * const pxPreviousWakeTime, const TickType_t xTimeIncrement)
+
+绝地延时函数，用于需要绝对精确时间周期的任务。
+**参数**：TickType_t * const pxPreviousWakeTime	上一次唤醒的时间
+			const TickType_t xTimeIncrement				延时的节拍
+
+
+
+#### 任务的设计要求
+
+FreeRTOS中任务运行的上下文包括：
+
+1. 中断服务函数。**需要特别注意**
+   运行在非任务的执行环境下，不能使用**挂起当前任务**的操作。
+   不允许调用任何会**阻塞**任务的API接口
+   最好保持精简、短小。一般只做标记事件发送的操作，然后通知对应任务进行相关处理。
+2. 普通任务
+   每个任务都有明确的优先级，而在实时操作系统中，任务不能返回在末尾会有一个死循环，而高优先级的任务会抢占低优先级的任务，所以这个死循环一定不能是真正的死循环，否则就会影响到其他低优先级的任务。所以需要在合适的时机将任务阻塞。
+3. 空闲任务
+   保证CPU在任何时刻都有任务在执行，在空闲任务里面不允许挂起。
+   可以在空闲任务中释放一些资源
+4. 任务执行时间
+   分为任务开始到结束的时间，和任务的周期。
+   要正确设计优先级，保证各个任务都能在要求的响应时间内完成。
