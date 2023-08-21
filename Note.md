@@ -141,3 +141,136 @@ FreeRTOS中任务运行的上下文包括：
 4. 任务执行时间
    分为任务开始到结束的时间，和任务的周期。
    要正确设计优先级，保证各个任务都能在要求的响应时间内完成。
+
+
+
+## 消息队列
+
+队列又称消息队列，是一种常用于**任务间**通信的数据结构，队列可以在任务与任务间、中断和任务间传递信息，实现了任务接收来自其他任务或中断的不固定长度的消息。
+
+FreeRTOS 中使用队列数据结构实现任务异步通信工作，具有如下特性：
+
+- 消息支持先进先出方式排队，支持异步读写工作方式。
+- 读写队列均支持超时机制。
+- 消息支持后进先出方式排队，往队首发送消息（LIFO）。
+- 可以允许不同长度（不超过队列节点最大值）的任意类型消息。
+- 一个任务能够从任意一个消息队列接收和发送消息。
+- 多个任务能够从同一个消息队列接收和发送消息。
+- 当队列使用结束后，可以通过删除队列函数进行删除。
+
+##### 消息队列的数据存储
+
+通常队列采用先进先出(FIFO)的存储缓冲机制，当然也可以使用 LIFO。
+数据发送到队列中会导致数据拷贝，也就是将要发送的数据拷贝到队列中，这就意味着在队列中存储的是数据的原始值，而不是原数据的引用(即只传递数据的指针)，这个也叫做**值传递**。当特殊情况下，比如需要发送的数据很大时也可以使用地址传递，将数据的指针放入消息队列。
+
+##### 出队阻塞
+
+当任务尝试从一个队列中读取消息的时候可以指定一个阻塞时间，这个阻塞时间就是当任务从队列中读取消息无效的时候任务阻塞的时间（时间节拍数）。可以通过设置阻塞时间控制任务读取队列遇到消息无效时的等待模式（0：不等待   0~Max：等待指定的阻塞时间节拍    MAX：一直等待，直到接受数据为止）
+
+##### 入队阻塞
+
+入队说的是向队列中发送消息，将消息加入到队列中。和出队阻塞一样，当一个任务向队列发送消息的话也可以设置阻塞时间（队列是满的时候发生）。
+
+##### 消息队列的使用
+
+在创建队列的时候需要指定**队列的长度**以及**每条消息的长度**。在以值传递的方式向消息队列发送消息时，一旦发送完成那么原变量是可以再次使用的。
+
+#### 消息队列控制块
+
+```CC
+typedef struct QueueDefinition /* The old naming convention is used to prevent breaking kernel aware debuggers. */
+{
+    int8_t * pcHead;		//指向队列消息存储区的起始位置
+    int8_t * pcWriteTo;		//指向队列消息存储区下一个可用消息空间
+    
+    //下面结构与视频教程版本不一样
+    union		//用枚举类型确保只有一个存在
+    {
+        QueuePointers_t xQueue;		//用作队列时选择，
+        ///////////////////////////////////////
+        //typedef struct QueuePointers
+		//{
+    	//	int8_t * pcTail;     //指向队列消息存储区的结束位置
+    	//	int8_t * pcReadFrom; //指向出队消息空间的最后一个
+		//} QueuePointers_t;
+        //////////////////////////////////////
+        SemaphoreData_t xSemaphore; //用作信号量时选择
+        ////////////////////////////////////////
+        //typedef struct SemaphoreData
+		//{
+    	//	TaskHandle_t xMutexHolder;        //持有互斥对象的任务的句柄。
+    	//	UBaseType_t uxRecursiveCallCount; //用于计数，记录递归互斥量被调用的次数
+		//} SemaphoreData_t;
+        ////////////////////////////////////////
+    } u;
+
+    List_t xTasksWaitingToSend;		//发送消息阻塞的列表，用于保存阻塞在队列的任务
+    List_t xTasksWaitingToReceive;  //获取消息阻塞的列表，用于保存阻塞在队列的任务
+    
+    volatile UBaseType_t uxMessagesWaiting;  //记录当前消息队列的消息个数，当消息队列用于信号量时用于记录信号量的个数
+    UBaseType_t uxLength;		//消息队列的长度
+    UBaseType_t uxItemSize;      //保存单个消息的大小   单位是字节        
+    volatile int8_t cRxLock;    //用于当队列上锁之后的接收列表项数目（出队的数目）  ，没用上锁会设置为一个宏定义的值 
+    volatile int8_t cTxLock;    //用于当队列上锁之后发送的列表项数目（入队的数目）  ，没用上锁会设置为一个宏定义的值
+    
+//下面是通过条件编译定义的一些队列的其他功能
+    #if ( ( configSUPPORT_STATIC_ALLOCATION == 1 ) && ( configSUPPORT_DYNAMIC_ALLOCATION == 1 ) )
+        uint8_t ucStaticallyAllocated; 
+    #endif
+
+    #if ( configUSE_QUEUE_SETS == 1 )
+        struct QueueDefinition * pxQueueSetContainer;
+    #endif
+
+    #if ( configUSE_TRACE_FACILITY == 1 )
+        UBaseType_t uxQueueNumber;
+        uint8_t ucQueueType;
+    #endif
+} xQUEUE;
+```
+
+#### 常用消息队列的API函数
+
+1. ##### ![创建消息队列函数](image\6.1 创建消息队列函数.jpg)
+
+2. ##### ![image-20230821163718411](image\6.2 消息队列静态创建函数.jpg)
+
+3. ##### 消息队列删除函数 vQueueDelete()
+
+   void vQueueDelete( QueueHandle_t xQueue )
+   删除消息队列
+   **参数：** QueueHandle_t xQueue  要删除消息队列的句柄。
+
+4. ##### 向队列发送消息的函数
+
+   1. ###### ![image-20230821170309796](image\6.3 向消息队列发送消息函数(队尾).jpg)
+
+   2. ###### xQueueSendToBack()  返回值与参数均同函数1。
+
+      函数1，2实际都是xQueueGenericSend函数的重定义
+      ![image-20230821171047939](image\6.4 向消息队列发送消息函数(队尾)的重定义.jpg)
+
+   3. ###### ![image-20230821171405636](image\6.5 向消息队列发送消息函数(中断中使用).jpg)
+
+   4. ###### xQueueSendToBackFromISR() 返回值与参数均同函数3。![image-20230821171621479](image\6.4 向消息队列发送消息函数(中断使用)(队尾)的重定义.jpg)
+
+   5. ###### ![image-20230821171744714](image\6.3 向消息队列发送消息函数(队头).jpg)![image-20230821171827422](image\6.3 向消息队列发送消息函数(队头)的定义.jpg)
+
+   6. ###### ![image-20230821172033492](image\6.5 向消息队列发送消息函数(中断中使用)(队头).jpg)![image-20230821172136195](image\6.4 向消息队列发送消息函数(中断使用)(队头)的重定义.jpg)
+
+   7. ###### xQueueGenericSend()![image-20230821172252582](image\6.6 xQueueGenericSend.jpg)
+
+   8. xQueueGenericSendFromISR()![image-20230821172321074](image\6.7 xQueueGenericSendFromISR.jpg)
+
+5. ##### 从消息队列读取消息函数
+   1. ###### ![image-20230821172558271](image\6.8 xQueueReceive.jpg)
+
+   2. ###### xQueuePeek() 同上 但是不会吧消息从该队列中移除
+
+   3. ###### ![image-20230821172823009](image\6.9 xQueueReceiveFromISR.jpg)
+
+   4. ###### ![image-20230821172907181](image\6.10 xQueuePeekFromISR.jpg)
+
+6. ##### **消息队列使用注意事项**
+
+   ![image-20230821173010583](image\6.11 消息队列使用注意事项.jpg)

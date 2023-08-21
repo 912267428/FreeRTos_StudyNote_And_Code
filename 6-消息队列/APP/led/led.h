@@ -14,7 +14,10 @@
 
 
 #define LED1 PBout(5)  	
-#define LED2 PAout(5)  	
+#define LED2 PAout(5)  
+
+#define LED1_in PBin(5)  	
+#define LED2_in PAin(5)
 
 
 void LED_Init(void);
