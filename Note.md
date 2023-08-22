@@ -1,5 +1,8 @@
 ## 4、FreeRTOS启动流程
 
+视频中关于外设以及中断的初始化函数都是在main函数中的，但是我在实践的时候发现将OLED显示屏的初始化函数放在main函数中时整个程序会卡死，当时的解决方案是将初始化函数放在任务中。后来又遇到了在main函数中调用复写的printf函数向串口发送数据也卡死，查找资料应该是因为芯片的性能或者堆栈空间不够大的问题。为了验证我在main函数开头定义了一个u32的变量用for训练一直加，100、1000都没有问题，但是到了10000就出现了前面提到的卡死问题，证明查找资料得到的结论基本正确。
+解决方案有两个：一是在任务中进行外设的初始化，但是我不太喜欢这种方式，后面可能会遇到在多个任务中需要使用同一外设的问题。二是在进入main函数后挂起全部任务，初始化完后在恢复全部任务。分别调用vTaskSuspendAll()和xTaskResumeAll()，外设初始化代码则在这两行中间编写。
+
 #### 任务创建
 
 1：在系统上电是第一个执行的是启动文件里面由汇编语言编写的复位函数
@@ -144,7 +147,7 @@ FreeRTOS中任务运行的上下文包括：
 
 
 
-## 消息队列
+## 6、消息队列
 
 队列又称消息队列，是一种常用于**任务间**通信的数据结构，队列可以在任务与任务间、中断和任务间传递信息，实现了任务接收来自其他任务或中断的不固定长度的消息。
 
@@ -175,7 +178,7 @@ FreeRTOS 中使用队列数据结构实现任务异步通信工作，具有如�
 
 在创建队列的时候需要指定**队列的长度**以及**每条消息的长度**。在以值传递的方式向消息队列发送消息时，一旦发送完成那么原变量是可以再次使用的。
 
-#### 消息队列控制块
+#### <a name="消息队列控制块">消息队列控制块</a>
 
 ```CC
 typedef struct QueueDefinition /* The old naming convention is used to prevent breaking kernel aware debuggers. */
@@ -274,3 +277,94 @@ typedef struct QueueDefinition /* The old naming convention is used to prevent b
 6. ##### **消息队列使用注意事项**
 
    ![image-20230821173010583](image\6.11 消息队列使用注意事项.jpg)
+
+## 
+
+## 7、信号量
+
+#### 简介
+
+信号量（Semaphore）是一种实现**任务间通信**的机制，可以实现任务之间同步或临界资源的互斥访问，常用于协助一组**相互竞争**的任务来访问临界资源。在多任务系统中，各任务之间需要同步或互斥实现临界资源的保护，信号量功能可以为用户提供这方面的支持。
+
+1. ###### 二值信号量
+
+   二值信号量既可以用于临界资源访问也可以用于同步功能。
+
+2. ###### 计数信号量
+
+   二进制信号量可以被认为是长度为 1 的队列，而计数信号量则可以被认为长度大于 1的队列，信号量使用者依然不必关心存储在队列中的消息，只需关心队列是否有消息即可。
+
+3. ###### 互斥信号量
+
+   互斥信号量其实是特殊的二值信号量，由于其特有的**优先级继承机制**从而使它更适用于**简单互锁**，也就是保护临界资源。**不能用在中断中**
+
+4. 递归信号量
+
+#### 二值信号量
+
+![image-20230822163532316](image\7.1 二值信号量的运行机制.jpg)
+
+#### 计数信号量
+
+![image-20230822165102236](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\7.2 计数信号量的运作机制.jpg)
+
+​	可以允许多个任务获取信号量共享资源，但是回限制任务的最大数目。
+
+#### 信号量控制块
+
+与消息队列的结构体一模一样，只是某些成员变量的含义不同。：[消息队列控制块](#消息队列控制块)
+
+```c
+typedef struct QueueDefinition /* The old naming convention is used to prevent breaking kernel aware debuggers. */
+{
+    int8_t * pcHead;		
+    int8_t * pcWriteTo;		
+    
+    //下面结构与视频教程版本不一样
+    union		//用枚举类型确保只有一个存在
+    {
+        QueuePointers_t xQueue;	
+        SemaphoreData_t xSemaphore; //用作信号量时选择
+        ////////////////////////////////////////
+        //typedef struct SemaphoreData
+		//{
+    	//	TaskHandle_t xMutexHolder;        //持有互斥对象的任务的句柄。
+    	//	UBaseType_t uxRecursiveCallCount; //用于计数，记录递归互斥量被调用的次数
+		//} SemaphoreData_t;
+        ////////////////////////////////////////
+    } u;
+
+    List_t xTasksWaitingToSend;		
+    List_t xTasksWaitingToReceive;  
+    
+    volatile UBaseType_t uxMessagesWaiting;  //队列用于信号量时该成员记录有效信号量的个数，根据信号量的分类选择。  
+    UBaseType_t uxLength;		//队列用于信号量时该成员表示最大信号量的可用个数
+    UBaseType_t uxItemSize;     //队列用于信号量时该成员表示无存储空间    
+    volatile int8_t cRxLock;    
+    volatile int8_t cTxLock;    
+    
+//下面是通过条件编译定义的一些队列的其他功能
+///...
+} xQUEUE;
+```
+
+#### 信号量常用API函数
+
+1. ###### 创建二值信号量 xSemaphoreCreateBinary 返回一个句柄。![](image\7.3 创建二值信号量.jpg)
+
+   必须要在配置文件中使能动态内存分配才能用。
+
+2. ###### 创建计数信号量  xSemaphoreCreateCounting()<img src="image\7.4 创建计数信号量.jpg" alt="image-20230822171150207" style="zoom: 80%;" />
+
+3. ###### 信号量删除函数 vSemaphoreDelete()![image-20230822171304196](image\7.5 信号量删除函数.jpg)
+
+   如果有任务阻塞在一个信号量时不要删除这个信号量
+
+4. ###### 信号量释放函数(普通任务)  xSemaphoreGive()![image-20230822171438226](image\7.3 信号量释放函数(普通任务).jpg)
+
+5. ###### 信号量释放函数(中断中)  xSemaphoreGiveFromISR()![image-20230822171544934](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\7.6 信号量释放函数(中断中).jpg)
+
+6. ###### 信号量获取函数(普通任务) xSemaphoreTake() ![image-20230822171812711](image\7.7 信号量获取函数.jpg)
+
+7. ###### 信号量获取函数(中断)  xSemaphoreTakeFromISR()![image-20230822171922189](image\7.8 信号量获取函数(中断).jpg)
+
