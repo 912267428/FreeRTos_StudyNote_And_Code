@@ -1,4 +1,4 @@
-## 4、FreeRTOS启动流程
+4、FreeRTOS启动流程
 
 视频中关于外设以及中断的初始化函数都是在main函数中的，但是我在实践的时候发现将OLED显示屏的初始化函数放在main函数中时整个程序会卡死，当时的解决方案是将初始化函数放在任务中。后来又遇到了在main函数中调用复写的printf函数向串口发送数据也卡死，查找资料应该是因为芯片的性能或者堆栈空间不够大的问题。为了验证我在main函数开头定义了一个u32的变量用for训练一直加，100、1000都没有问题，但是到了10000就出现了前面提到的卡死问题，证明查找资料得到的结论基本正确。
 解决方案有两个：一是在任务中进行外设的初始化，但是我不太喜欢这种方式，后面可能会遇到在多个任务中需要使用同一外设的问题。二是在进入main函数后挂起全部任务，初始化完后在恢复全部任务。分别调用vTaskSuspendAll()和xTaskResumeAll()，外设初始化代码则在这两行中间编写。
@@ -423,3 +423,61 @@ typedef struct QueueDefinition /* The old naming convention is used to prevent b
 
 7. ###### 递归互斥量释放函数 xSemaphoreGiveRecursive()![image-20230823161438652](image\8.8 递归互斥量释放函数 .jpg)
 
+
+
+## 9、事件
+
+FreeRTOS使用信号量进行任务间的同步只能实现单个任务与单个任务之间的同步，有时有的任务可能需要与多个任务进行同步，FreeRTOS提供的解决方法就是事件。
+
+#### 简介
+
+事件是一种实现任务间通信的机制，主要用于实现多任务间的同步，但事件通信只能是事件类型的通信，**无数据传输**。与信号量不同的是，它可以实现**一对多**，**多对多**的同步。
+
+**configUSE_16_BIT_TICKS** 定义为 0，那么 uxEventBits 是 32 位的，有 24 个位用来实现事件标志组。
+
+一对多同步模型：一个任务等待多个事件的触发，这种情况是比较常见的；多对多同步模型：多个任务等待多个事件的触发。
+
+##### 事件的特点
+
+![image-20230824144931794](image\9.1 事件的特点.jpg)
+
+##### 应用场景和运转机制
+
+应用场景：事件常用于事件类型的通讯，没有数据传输。也就是事件的作用相当于一个标志位，判断某些事件是否发生了，根据结果进行对应的处理。事件的发送是不可以累计的，不同于信号量。事件接收任务可以等待多个事件。
+
+运转机制：
+![image-20230824145630631](image\9.2 事件运转机制.jpg)
+
+#### 事件控制块
+
+```C
+typedef struct EventGroupDef_t
+{
+    EventBits_t uxEventBits;	//宏configUSE_16_BIT_TICKS定义为1那么这个地方的类型为u16否则为u32
+    List_t xTasksWaitingForBits; 	//计入所有等待事件的任务
+
+    #if ( configUSE_TRACE_FACILITY == 1 )
+        UBaseType_t uxEventGroupNumber;
+    #endif
+
+    #if ( ( configSUPPORT_STATIC_ALLOCATION == 1 ) && ( configSUPPORT_DYNAMIC_ALLOCATION == 1 ) )
+        uint8_t ucStaticallyAllocated; 
+    #endif
+} EventGroup_t;
+```
+
+#### 常用API函数
+
+1. ###### 事件创建函数 xEventGroupCreate()![image-20230824155752891](image\9.3 事件创建函数.jpg)
+
+2. ###### 事件删除函数 vEventGroupDelete()![image-20230824155832273](image\9.4 事件删除函数.jpg)
+
+3. ###### 事件组置位函数 xEventGroupSetBits()![image-20230824155903630](image\9.5 事件组置位函数.jpg)
+
+4. ###### 事件组置位函数（中断） xEventGroupSetBitsFromISR()![image-20230824155936545](image\9.6 事件组置位函数(中断).jpg)
+
+5. ###### 等待事件函数 xEventGroupWaitBits()![image-20230824160005249](image\9.7 等待事件函数().jpg)
+
+6. ###### 事件清除函数xEventGroupClearBits()与 xEventGroupClearBitsFromISR()
+
+   ![image-20230824160110161](image\9.8 事件清除函数.jpg)
