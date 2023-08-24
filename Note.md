@@ -481,3 +481,58 @@ typedef struct EventGroupDef_t
 6. ###### 事件清除函数xEventGroupClearBits()与 xEventGroupClearBitsFromISR()
 
    ![image-20230824160110161](image\9.8 事件清除函数.jpg)
+
+
+
+## 10、软件定时器
+
+#### 简介
+
+定时器，是指从指定的时刻开始，经过一个指定时间，然后触发一个超时事件，用户可以自定义定时器的周期与频率。
+FreeRTOS 操作系统提供软件定时器功能，软件定时器的使用相当于扩展了定时器的数量，允许创建更多的定时业务。FreeRTOS 软件定时器功能上支持：
+
+- 裁剪：能通过宏关闭软件定时器功能。
+- 软件定时器创建。
+- 软件定时器启动。
+- 软件定时器停止。
+- 软件定时器复位。
+- 软件定时器删除。
+
+![image-20230824184640129](image\10.1 软件定时器简介.jpg)
+
+#### 定时器应用场景
+
+使用软件定时器时候要注意以下几点：
+
+●软件定时器的回调函数中应快进快出，绝对不允许使用任何可能引软件定时器起任务挂起或者阻塞的 API 接口，在回调函数中也绝对不允许出现死循环。
+
+●软件定时器使用了系统的一个队列和一个任务资源，软件定时器任务的优先级默认为 configTIMER_TASK_PRIORITY，为了更好响应，该优先级应设置为所有任务中最高的优先级。
+
+●创建单次软件定时器，该定时器超时执行完回调函数后，系统会自动删除该软件定时器，并回收资源。
+
+●定时器任务的堆栈大小默认为 configTIMER_TASK_STACK_DEPTH 个字节。
+
+```C
+ typedef struct tmrTimerControl
+    {
+        const char * pcTimerName;				//软件定时器的名称
+        ListItem_t xTimerListItem;				//软件定时器的列表项
+        TickType_t xTimerPeriodInTicks;			//软件定时器的周期 单位是系统节拍周期
+        void * pvTimerID;						//软件定时器的ID
+        TimerCallbackFunction_t pxCallbackFunction;	//软件定时器的回调函数
+        #if ( configUSE_TRACE_FACILITY == 1 )
+            UBaseType_t uxTimerNumber;
+        #endif
+        uint8_t ucStatus;					//保存位表示计时器是否被静态分配，以及它是否处于活动状态。   视频中出现但是这里没有的两个变量就是被这个变量所代替
+    } xTIMER;
+```
+
+#### 常用API函数
+
+1. 软件定时器创建函数 xTimerCreate()![image-20230824194925505](image\10.2 软件定时器创建函数.jpg)
+   
+2. 软件定时器启动函数 xTimerStart()![image-20230824195001842](image\10.3 软件定时器启动函数.jpg)
+3. 软件定时器启动函数 xTimerStartFromISR()![image-20230824195204118](image\10.4 软件定时器启动函数(中断).jpg)
+4. 软件定时器停止函数  xTimerStop()![image-20230824195238366](image\10.5 软件定时器停止函数.jpg)
+5. 软件定时器停止函数**中断**  xTimerStopFromISR()![image-20230824195318818](image\10.6 软件定时器停止函数.jpg)
+6. 软件定时器删除函数 xTimerDelete()![image-20230824195350501](image\10.7 软件定时器删除函数.jpg)
