@@ -573,3 +573,45 @@ FreeRTOS 从 V8.2.0 版本开始提供任务通知这个功能，每个任务都
    2. xTaskNotifyWait()
       ![image-20230825155018892](image\11.10 xTaskNotifyWait())
 
+
+
+## 12、内存管理
+
+标准 C 库中的 malloc()和 free()也可以实现动态内存管理，但是如下原因限制了其使用：
+
+- 这些函数在小型嵌入式系统中并不总是可用的，小型嵌入式设备中的 RAM 不足。
+
+- 它们的实现可能非常的大，占据了相当大的一块代码空间。
+
+- 他们几乎都不是安全的
+
+- 它们并不是确定的，每次调用这些函数执行的时间可能都不一样。
+
+- 它们有可能产生碎片。
+
+- 这两个函数会使得链接器配置得复杂。
+
+  在FreeRTOS中可以使用**pvPortMalloc()**来替代 malloc()，**vPortFree()**函数来替代 free()。
+  FreeRTOS 的 V9.0.0 版本为我们提供了 5 种内存管理算法，分别是 heap_1.c、heap_2.c、heap_3.c、**heap_4.c**、heap_5.c，FreeRTOS\Source\portable\MemMang
+
+FreeRTOS 中的内存堆为ucHeap[]，大小为configTOTAL_HEAP_SIZE。
+
+![image-20230825202521033](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.1 内存分配方法.jpg)
+
+####   五种内存分配方法
+
+1. heap_1内存分配方法
+   ![image-20230825202751325](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.2 heap_1内存分配方法.jpg)
+2. heap_2内存分配方法
+   ![image-20230825202840616](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.3 heap_2内存分配方法.jpg)![image-20230825202918328](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.4 heap_2内存分配方法2.jpg)
+   该方法用到的内存块：![image-20230825203110577](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.4 heap_2内存分配方法用到的内存控制块.jpg)
+3. heap_3内存分配方法
+   heap_3.c 方法只是简单的封装了标准 C 库中的 malloc()和 free()函数，并且能满足常用的编译器。重新封装后的 malloc()和 free()函数具有保护功能，采用的封装方式是操作内存前挂起调度器、完成后再恢复调度器。
+   ![image-20230825203159530](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.5 heap_3内存分配方法.jpg)
+4. heap_4内存分配方法
+   ![image-20230825203232563](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.6 heap_4内存分配方法.jpg)
+5. heap_5内存分配方法    （可以支持内存堆跨越多个不联系的内存段）
+   如果使用 heap_5 的话，在调用 API 函数之前需要先调用函数 vPortDefineHeapRegions ()来对内存堆做初始化处理，在 vPortDefineHeapRegions()未执行完之前禁止调用任何可能会调用pvPortMalloc()的 API 函数！
+   ![image-20230825203354755](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.7 heap_5内存分配方法.jpg)
+
+
