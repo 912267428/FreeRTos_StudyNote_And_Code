@@ -536,3 +536,40 @@ FreeRTOS 操作系统提供软件定时器功能，软件定时器的使用相�
 4. 软件定时器停止函数  xTimerStop()![image-20230824195238366](image\10.5 软件定时器停止函数.jpg)
 5. 软件定时器停止函数**中断**  xTimerStopFromISR()![image-20230824195318818](image\10.6 软件定时器停止函数.jpg)
 6. 软件定时器删除函数 xTimerDelete()![image-20230824195350501](image\10.7 软件定时器删除函数.jpg)
+
+
+
+## 11 、任务通知
+
+FreeRTOS 从 V8.2.0 版本开始提供任务通知这个功能，每个任务都有一个 32 位的通知值，在大多数情况下，任务通知可以替代二值信号量、计数信号量、事件组，也可以替代长度为 1 的队列（可以保存一个 32位整数或指针值）。如过要使用任务通知则需要在配置文件中将configUSE_TASK_NOTIFICATIONS 设置为 1。
+
+![image-20230825151440927](image\11.1 任务通知的利弊.jpg)
+
+在任务控制块TCB中会根据configUSE_TASK_NOTIFICATIONS的值选择是否编译
+
+```c
+    #if ( configUSE_TASK_NOTIFICATIONS == 1 )
+        volatile uint32_t ulNotifiedValue[ configTASK_NOTIFICATION_ARRAY_ENTRIES ];
+        volatile uint8_t ucNotifyState[ configTASK_NOTIFICATION_ARRAY_ENTRIES ];
+    #endif
+```
+
+#### 常用API函数：
+
+1. ##### 发送任务通知函数 xTaskGenericNotify()、xTaskNotifyGive() 、 xTaskNotify() 、 xTaskNotifyAndQuery()
+
+   都有宏定义调用：![image-20230825152112407](image\11.2 发送任务通知函数原型.jpg)
+
+   1. xTaskNotifyGive()![image-20230825152232986](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\11.3 xTaskNotifyGive().jpg)
+   2. vTaskNotifyGiveFromISR()是 vTaskNotifyGive()的中断保护版本
+   3. xTaskNotify()![image-20230825152349714](image\11.4 xTaskNotify().jpg)![image-20230825152432788](image\11.5 eAction的含义.jpg)
+   4. xTaskNotifyFromISR()是 xTaskNotify()的中断保护版本。
+   5. xTaskNotifyAndQuery()![image-20230825152858989](image\11.6 xTaskNotifyAndQuery()的宏定义.jpg)![image-20230825152930939](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\11.7 xTaskNotifyAndQuery().jpg)
+   6. xTaskNotifyAndQueryFromISR()![image-20230825153028285](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\11.8 xTaskNotifyAndQueryFromISR().jpg)
+
+2. ##### 获取任务通知函数 ulTaskNotifyTake()和xTaskNotifyWait()
+
+   1. ulTaskNotifyTake()![image-20230825153111928](image\11.9 ulTaskNotifyTake().jpg)
+   2. xTaskNotifyWait()
+      ![image-20230825155018892](image\11.10 xTaskNotifyWait())
+
