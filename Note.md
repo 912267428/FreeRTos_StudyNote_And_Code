@@ -564,14 +564,14 @@ FreeRTOS 从 V8.2.0 版本开始提供任务通知这个功能，每个任务都
    2. vTaskNotifyGiveFromISR()是 vTaskNotifyGive()的中断保护版本
    3. xTaskNotify()![image-20230825152349714](image\11.4 xTaskNotify().jpg)![image-20230825152432788](image\11.5 eAction的含义.jpg)
    4. xTaskNotifyFromISR()是 xTaskNotify()的中断保护版本。
-   5. xTaskNotifyAndQuery()![image-20230825152858989](image\11.6 xTaskNotifyAndQuery()的宏定义.jpg)![image-20230825152930939](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\11.7 xTaskNotifyAndQuery().jpg)
-   6. xTaskNotifyAndQueryFromISR()![image-20230825153028285](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\11.8 xTaskNotifyAndQueryFromISR().jpg)
+   5. xTaskNotifyAndQuery()![image-20230825152858989](image\11.6 xTaskNotifyAndQuery()的宏定义.jpg)![image-20230825152930939](image\11.7 xTaskNotifyAndQuery().jpg)
+   6. xTaskNotifyAndQueryFromISR()![image-20230825153028285](image\11.8 xTaskNotifyAndQueryFromISR().jpg)
 
 2. ##### 获取任务通知函数 ulTaskNotifyTake()和xTaskNotifyWait()
 
    1. ulTaskNotifyTake()![image-20230825153111928](image\11.9 ulTaskNotifyTake().jpg)
    2. xTaskNotifyWait()
-      ![image-20230825155018892](image\11.10 xTaskNotifyWait())
+      ![image-20230825155018892](image\11.10 xTaskNotifyWait().jpg)
 
 
 
@@ -601,17 +601,56 @@ FreeRTOS 中的内存堆为ucHeap[]，大小为configTOTAL_HEAP_SIZE。
 ####   五种内存分配方法
 
 1. heap_1内存分配方法
-   ![image-20230825202751325](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.2 heap_1内存分配方法.jpg)
+   ![image-20230825202751325](image\12.2 heap_1内存分配方法.jpg)
 2. heap_2内存分配方法
-   ![image-20230825202840616](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.3 heap_2内存分配方法.jpg)![image-20230825202918328](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.4 heap_2内存分配方法2.jpg)
-   该方法用到的内存块：![image-20230825203110577](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.4 heap_2内存分配方法用到的内存控制块.jpg)
+   ![image-20230825202840616](image\12.3 heap_2内存分配方法.jpg)![image-20230825202918328](image\12.4 heap_2内存分配方法2.jpg)
+   该方法用到的内存块：![image-20230825203110577](image\12.4 heap_2内存分配方法用到的内存控制块.jpg)
 3. heap_3内存分配方法
    heap_3.c 方法只是简单的封装了标准 C 库中的 malloc()和 free()函数，并且能满足常用的编译器。重新封装后的 malloc()和 free()函数具有保护功能，采用的封装方式是操作内存前挂起调度器、完成后再恢复调度器。
-   ![image-20230825203159530](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.5 heap_3内存分配方法.jpg)
+   ![image-20230825203159530](image\12.5 heap_3内存分配方法.jpg)
 4. heap_4内存分配方法
-   ![image-20230825203232563](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.6 heap_4内存分配方法.jpg)
+   ![image-20230825203232563](image\12.6 heap_4内存分配方法.jpg)
 5. heap_5内存分配方法    （可以支持内存堆跨越多个不联系的内存段）
    如果使用 heap_5 的话，在调用 API 函数之前需要先调用函数 vPortDefineHeapRegions ()来对内存堆做初始化处理，在 vPortDefineHeapRegions()未执行完之前禁止调用任何可能会调用pvPortMalloc()的 API 函数！
-   ![image-20230825203354755](D:\Program Files(x86)\qrs\FreeRTos_StudyNote_And_Code\image\12.7 heap_5内存分配方法.jpg)
+   ![image-20230825203354755](image\12.7 heap_5内存分配方法.jpg)
 
 
+
+## 13、中断管理
+
+#### **临界段保护简介**
+
+临界段用一句话概括就是一段在执行的时候不能被中断的代码段。在 FreeRTOS 里面，这个临界段最常出现的就是对全局变量的操作。
+
+##### **Cortex-M内核快速开关中断指令**
+
+![image-20230827143330301](image\13.1 Cortex-M内核快速开关中断指令.jpg)
+
+##### **关中断**
+
+FreeRTOS 关中断的函数在 portmacro.h 中定义，分不带返回值和带返回值两种。
+
+**不带返回值**（也就是不保存原始值，不管原始值的状态）的关中断不能在中断中是使用，也不能嵌套
+![image-20230827143424913](image\13.2 不带返回值的关中断函数.jpg)
+
+**带返回值** 可以嵌套，可以在中断中使用
+![image-20230827144149584](image\13.3 带返回值的关中断函数.jpg)
+
+##### **开中断**
+
+![image-20230827144426026](image\13.4 开中断函数.jpg)
+
+#### **临界段保护简介**
+
+临界段代码也叫做临界区，是指那些必须完整运行，不能被打断的代码段，比如有的外设的初始化需要严格的时序，初始化过程中不能被打断。
+![image-20230827144609765](image\13.5 临界段函数定义.jpg)
+任务级临界段保护
+
+![image-20230827155745782](image\13.6 任务级临界段代码保护.jpg)
+
+中断级临界段保护
+![image-20230827155924204](image\13.6 中断级临界段代码保护.jpg)
+
+#### 中断管理
+
+用户可以自定义配置系统可管理的最高中断优先级的宏定义configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY，它是用于配置内核中的basepri 寄存器的，当 basepri 设置为某个值的时候，NVIC 不会响应比该优先级低的中断，而优先级比之更高的中断则不受影响。就是说当这个宏定义配置为 5 的时候，中断优先级数值在 0、1、2、3、4 的这些中断是不受 FreeRTOS 屏蔽的，也就是说即使在系统进入临界段的时候，这些中断也能被触发而不是等到退出临界段的时候才被触发，当然，这些中断服务函数中也不能调用 FreeRTOS 提供的 API 函数接口，而中断优先级在 5 到 15 的这些中断是可以被屏蔽的，也能安全调用 FreeRTOS 提供的 API 函数接口。
