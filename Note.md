@@ -654,3 +654,12 @@ FreeRTOS 关中断的函数在 portmacro.h 中定义，分不带返回值和带�
 #### 中断管理
 
 用户可以自定义配置系统可管理的最高中断优先级的宏定义configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY，它是用于配置内核中的basepri 寄存器的，当 basepri 设置为某个值的时候，NVIC 不会响应比该优先级低的中断，而优先级比之更高的中断则不受影响。就是说当这个宏定义配置为 5 的时候，中断优先级数值在 0、1、2、3、4 的这些中断是不受 FreeRTOS 屏蔽的，也就是说即使在系统进入临界段的时候，这些中断也能被触发而不是等到退出临界段的时候才被触发，当然，这些中断服务函数中也不能调用 FreeRTOS 提供的 API 函数接口，而中断优先级在 5 到 15 的这些中断是可以被屏蔽的，也能安全调用 FreeRTOS 提供的 API 函数接口。
+
+## 14、CPU利用率
+
+用户想要使用 CPU 利用率统计的话，需要自定义配置一下，首先在FreeRTOSConfig.h 配置与系统运行时间和任务状态收集有关的配置选项，并且实现portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() 与portGET_RUN_TIME_COUNTER_VALUE()这两个宏定义
+![image-20230827175453354](image\14.1 使用CPU利用率需要进行的配置.jpg)
+
+![image-20230827175528744](image\14.2 需要实现的一个高精度定时器中断.jpg)
+
+vTaskGetRunTimeStats()和 vTaskList()函数获得任务的相关信息与 CPU 使用率的相关信息。
